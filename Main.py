@@ -9,22 +9,23 @@ def filter_matrix(codeword:list):
         return False
     else:
         return True
+    
+def clean_matrix(m:list):
+    a = []
+    for c in m:
+        if chkList(c) != True:
+            a.append(c)
+    return a    
 
 def generate_matrix(code:list, k:int):
-    matrix = []
-    aux = code.copy()
-    found = 0
-    i = 0
-    while found < k:
-        val = filter_matrix(aux[i])
-        if val:
-            matrix.append(aux[i])
-            aux.pop(i)
-            found += 1
-        i += 1
-    return matrix, aux
+    space = clean_matrix(code)
+    pos_gen = []
+    for subset in itertools.permutations(space, k):
+        if len(subset) >= k:
+            pos_gen.append(list(subset))
+    return pos_gen
 
-def verify_gen(gen:list, matrix:list, code:list, q:int):
+def verify_gen(gen:list, matrix:list, code:list, q:int, n:int, k:int):
     g = []
     to_verify = []
 
@@ -37,17 +38,14 @@ def verify_gen(gen:list, matrix:list, code:list, q:int):
         g.append(row) 
     
     g = np.array(g)
-    #np.transpose(g)
-    g = np.reshape(g, (3,2))
+    g = np.reshape(g, (n,k))
 
     for codeword in matrix:
-        #print(g)
         codeword = np.array(codeword)
-        codeword = np.reshape(codeword, (2,1))
-        #print(codeword, '\n')
+        codeword = np.reshape(codeword, (k,1))
 
         newc = np.dot(g, codeword)
-        newc = np.reshape(newc, (1,3))
+        newc = np.reshape(newc, (1,n))
         to_verify.append(newc.tolist())
     for v in to_verify:
         for v1 in v:
@@ -61,9 +59,15 @@ def verify_gen(gen:list, matrix:list, code:list, q:int):
             line += str(n)
         str_code.append(line)
 
-    print(str_code)
-    print(code)
-    print(str_code==code)
+    compared = list(set(str_code) & set(code))
+    if len(code) == len(compared):
+        print('Generadora verificada con exito\n', gen)
+        #print('Codigo generado con la matriz\n',str_code)
+        #print('Codigo obtenido por el conjunto de polinomios\n',code)
+        return True
+    else:
+        #print('Chale... Sigue intentando')
+        return False
 
 def get_space(s:int, length:int):
     space_units = []
@@ -93,11 +97,14 @@ def evaluate_pol(pol:list, x:int, dim:int):
     return r%dim
 
 
-def reed_solomon(A, q):
+def reed_solomon(A, q, n:int, k:int):
+    print('Longitud del codigo: ', n)
+    print('Dimension del codigo: ', k)
+    print('Distancia minima: ', str(n-k+1))
     pairs = []
     for L in range(len(A)):
         for subset in itertools.permutations(A, L):
-            if len(subset) >= 2:
+            if len(subset) >= k:
                 pairs.append(list(subset))
 
         triviales = []    
@@ -105,7 +112,8 @@ def reed_solomon(A, q):
             triviales.append(L)
         pairs.append(triviales)
 
-    
+    print('Coeficientes del conjunto de polinomios (los exponentes son representamos por el indice del coeficiente en el vector. ej: [1,1] = 1+x):\n', pairs)
+
     C = []
     for p in pairs:
         word = ''
@@ -114,11 +122,17 @@ def reed_solomon(A, q):
             word += str(bit)
         C.append(word)
 
-    generadora, generadora_aux = generate_matrix(C, 2) 
+    print('Codigo generado por el conjunto de polinomios: ', C)
 
-    space = get_space(3,2)
-    #print(space)
-    verify_gen(['111', '012'], space, C, q)
+    space = get_space(q,2)
+    generadoras = generate_matrix(C, 2)
+
+    sw = False
+    while not sw:
+        sw = verify_gen(generadoras[0], space, C, q, n=n, k=k)
+        if not sw:
+            generadoras.pop(0)
+    gen = generadoras[0]
 
 
-reed_solomon([0,1,2], 3)
+reed_solomon([0,1,2], 3, n=3, k=2)
